@@ -36,6 +36,32 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [movies, setMovies] = useState<Movie[]>([]);
+  const [aiSummaries, setAiSummaries] = useState<Record<number, string>>({});
+  const [aiLoadingIds, setAiLoadingIds] = useState<Record<number, boolean>>({});
+
+  const requestAiSummary = async (m: Movie) => {
+      if (!m.overview) return;
+
+      setAiLoadingIds((prev) => ({ ...prev, [m.id]: true }));
+
+      try {
+        const res = await fetch("/api/summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: m.overview, title: m.title }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data?.error ?? "AI 요약 실패");
+          return;
+        }
+
+        setAiSummaries((prev) => ({ ...prev, [m.id]: data.summary || "" }));
+      } finally {
+        setAiLoadingIds((prev) => ({ ...prev, [m.id]: false }));
+      }
+    };
 
   const onSearch = async () => {
     const q = query.trim();
@@ -129,13 +155,25 @@ export default function Home() {
               </div>
             )}
 
-            <div style={{ fontWeight: 600 }}>
-              {m.title}
-              {m.release_date ? ` (${m.release_date.slice(0, 4)})` : ""}
+            <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={() => requestAiSummary(m)}
+                disabled={!m.overview || aiLoadingIds[m.id]}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  cursor: "pointer",
+                  fontSize: 12,
+                }}
+              >
+                {aiLoadingIds[m.id] ? "요약 중..." : "AI 요약"}
+              </button>
             </div>
+
             {m.overview ? (
               <div style={{ fontSize: 14, color: "#444", marginTop: 4 }}>
-                {summarizeOverview(m.overview)}
+                {aiSummaries[m.id] ? aiSummaries[m.id] : summarizeOverview(m.overview)}
               </div>
             ) : (
               <div style={{ fontSize: 14, color: "#999", marginTop: 4 }}>
