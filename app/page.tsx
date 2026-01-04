@@ -2,6 +2,27 @@
 
 import { useState } from "react";
 
+function summarizeOverview(text?: string, maxSentences = 3, maxChars = 220) {
+  if (!text) return "";
+
+  const t = text.trim();
+  if (!t) return "";
+
+  // 문장 단위 분리(한국어/영어 혼합 대응용, 완벽하진 않음)
+  const sentences = t
+    .split(/(?<=[.!?。]|[다요죠]\.)\s+|(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (sentences.length >= 2) {
+    const picked = sentences.slice(0, maxSentences).join(" ");
+    return picked.length > maxChars ? picked.slice(0, maxChars) + "..." : picked;
+  }
+
+  // 문장 분리가 잘 안 되면 글자수 기준
+  return t.length > maxChars ? t.slice(0, maxChars) + "..." : t;
+}
+
 type Movie = {
   id: number;
   title: string;
@@ -114,7 +135,7 @@ export default function Home() {
             </div>
             {m.overview ? (
               <div style={{ fontSize: 14, color: "#444", marginTop: 4 }}>
-                {m.overview}
+                {summarizeOverview(m.overview)}
               </div>
             ) : (
               <div style={{ fontSize: 14, color: "#999", marginTop: 4 }}>
