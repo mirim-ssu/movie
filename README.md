@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+🎬 Movie-Summary: Easy Movie Guide
 
-## Getting Started
+프로젝트 목적
+Movie-Summary는 디지털 취약 계층이 영화 정보를 보다 쉽게 이해할 수 있도록 돕기 위해 제작되었습니다.영화 제목 검색만으로 포스터, 기본 정보를 제공하고 선택적으로 AI 요약을 한 화면에서 제공합니다.
 
-First, run the development server:
+개요
+TMDB 영화 데이터를 기반으로 영화를 검색하고,
+사용자가 원할 경우 OpenAI API를 활용해 한 문장 요약을 제공하는 웹 애플리케이션입니다. 모든 외부 API 호출은 서버(API Route)에서 처리하여 보안과 안정성을 고려했습니다.
 
-```bash
+주요 기능
+- 영화 제목 기반 검색
+- 영화 포스터 및 기본 정보 제공
+- 버튼 클릭 시에만 실행되는 AI 요약 기능
+- 서버 측 API 처리로 API 키 비노출
+
+사용 흐름
+사용자가 웹 페이지에 접속
+영화 제목 입력 후 검색
+영화 포스터 및 정보 확인
+필요 시 AI 요약 버튼 선택
+
+기술 구성
+Framework: Next.js (App Router)
+Frontend: React 기반 UI
+Backend: Next.js API Routes
+External APIs
+TMDB Movie API – 영화 데이터 제공
+OpenAI API – 영화 줄거리 요약
+
+프로젝트 구조
+movie-summary/
+├── app/
+│   ├── api/
+│   │   ├── tmdb/
+│   │   │   └── search/route.ts   # TMDB 영화 검색 API
+│   │   └── summary/route.ts      # OpenAI 기반 AI 요약 API
+│   ├── layout.tsx
+│   └── page.tsx                  # 메인 페이지
+├── public/
+├── .env.local                    # 환경 변수
+├── package.json
+└── README.md
+
+환경 변수 설정
+아래 값들은 .env.local 파일에 설정해야 합니다.
+TMDB_API_KEY=YOUR_TMDB_API_KEY
+OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+
+실행 방법
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+브라우저에서 아래 주소로 접속합니다.
+👉 http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+주의 사항
+OpenAI API 키가 없을 경우 AI 요약 기능은 동작하지 않습니다. TMDB API 응답 상태에 따라 일부 영화 정보가 누락될 수 있습니다. 본 프로젝트는 데모 및 학습 목적의 개인 프로젝트입니다.
