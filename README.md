@@ -54,22 +54,26 @@ movie-summary/
 ├── .env.local                    # 환경 변수
 ├── package.json
 └── README.md
-환경 변수 설정
+
+```
+## 환경 변수 설정
 아래 값들은 .env.local 파일에 설정해야 합니다.
 
-env
-코드 복사
 TMDB_API_KEY=YOUR_TMDB_API_KEY
 OPENAI_API_KEY=YOUR_OPENAI_API_KEY
-실행 방법
-bash
-코드 복사
+
+---
+
+## 실행 방법
 npm install
 npm run dev
+
 브라우저에서 아래 주소로 접속합니다.
 👉 http://localhost:3000
 
-주의 사항
+---
+
+## 주의 사항
 OpenAI API 키가 없을 경우 AI 요약 기능은 동작하지 않습니다.
 TMDB API 응답 상태에 따라 일부 영화 정보가 누락될 수 있습니다.
 본 프로젝트는 데모 및 학습 목적의 개인 프로젝트입니다.
