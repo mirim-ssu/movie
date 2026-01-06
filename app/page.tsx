@@ -1,188 +1,335 @@
 "use client";
 
-import { useState } from "react";
-
-function summarizeOverview(text?: string, maxSentences = 3, maxChars = 220) {
-  if (!text) return "";
-
-  const t = text.trim();
-  if (!t) return "";
-
-  // 문장 단위 분리(한국어/영어 혼합 대응용, 완벽하진 않음)
-  const sentences = t
-    .split(/(?<=[.!?。]|[다요죠]\.)\s+|(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (sentences.length >= 2) {
-    const picked = sentences.slice(0, maxSentences).join(" ");
-    return picked.length > maxChars ? picked.slice(0, maxChars) + "..." : picked;
-  }
-
-  // 문장 분리가 잘 안 되면 글자수 기준
-  return t.length > maxChars ? t.slice(0, maxChars) + "..." : t;
-}
+import { useEffect, useMemo, useState } from "react";
 
 type Movie = {
   id: number;
   title: string;
-  release_date?: string;
   overview?: string;
-  poster_path?: string;
+  poster_path?: string | null;
+  release_date?: string;
 };
 
-export default function Home() {
+const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
+
+export default function HomePage() {
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [aiSummaries, setAiSummaries] = useState<Record<number, string>>({});
-  const [aiLoadingIds, setAiLoadingIds] = useState<Record<number, boolean>>({});
+  const [results, setResults] = useState<Movie[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const requestAiSummary = async (m: Movie) => {
-      if (!m.overview) return;
+  const [selected, setSelected] = useState<Movie | null>(null);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
-      setAiLoadingIds((prev) => ({ ...prev, [m.id]: true }));
+  const hasOverview = !!selected?.overview?.trim();
 
-      try {
-        const res = await fetch("/api/summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: m.overview, title: m.title }),
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          alert(data?.error ?? "AI 요약 실패");
-          return;
-        }
-
-        setAiSummaries((prev) => ({ ...prev, [m.id]: data.summary || "" }));
-      } finally {
-        setAiLoadingIds((prev) => ({ ...prev, [m.id]: false }));
-      }
-    };
-
-  const onSearch = async () => {
+  async function onSearch(e?: React.FormEvent) {
+    e?.preventDefault();
     const q = query.trim();
-    if (!q) {
-      setError("영화 제목을 입력해줘");
-      return;
-    }
+    if (!q) return;
 
-    setLoading(true);
-    setError(null);
-    setMovies([]);
+    setErrorMsg("");
+    setIsSearching(true);
+    setSelected(null);
+    setAiSummary("");
 
     try {
-      const res = await fetch(`/api/tmdb/search?query=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      const res = await fetch(`/api/tmdb/search?query=${encodeURIComponent(q)}`, {
+        cache: "no-store",
+      });
 
       if (!res.ok) {
-        setError(data?.error ?? "검색 실패");
+        const t = await res.text();
+        setErrorMsg(`검색 실패: ${res.status} ${t}`);
+        setResults([]);
         return;
       }
 
-      const results = Array.isArray(data?.results) ? data.results : [];
-      setMovies(
-        results.map((m: any) => ({
-          id: m.id,
-          title: m.title,
-          release_date: m.release_date,
-          overview: m.overview,
-          poster_path: m.poster_path,
-        }))
-      );
-    } catch {
-      setError("네트워크 오류(확실하지 않음)");
+      const data = await res.json();
+      const list: Movie[] = Array.isArray(data?.results) ? data.results : [];
+      setResults(list);
+    } catch (err: any) {
+      setErrorMsg(`검색 중 오류: ${err?.message ?? "unknown"}`);
+      setResults([]);
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
-  };
+  }
+
+  function openMovie(m: Movie) {
+    setSelected(m);
+    setAiSummary("");
+    setErrorMsg("");
+  }
+
+  function closeModal() {
+    setSelected(null);
+    setAiSummary("");
+    setIsSummarizing(false);
+  }
+
+  async function runSummarize() {
+    if (!selected) return;
+
+    const text = selected.overview?.trim() ?? "";
+    if (!text) {
+      setAiSummary("요약할 줄거리가 없습니다.");
+      return;
+    }
+
+    setErrorMsg("");
+    setIsSummarizing(true);
+    setAiSummary("");
+
+    try {
+      const res = await fetch("/api/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, title: selected.title }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrorMsg(data?.detail || data?.error || "요약 실패");
+        return;
+      }
+
+      setAiSummary(data?.summary ?? "");
+    } catch (err: any) {
+      setErrorMsg(`요약 중 오류: ${err?.message ?? "unknown"}`);
+    } finally {
+      setIsSummarizing(false);
+    }
+  }
+
+  // ESC로 모달 닫기
+  useEffect(() => {
+    function onKeyDown(ev: KeyboardEvent) {
+      if (ev.key === "Escape") closeModal();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
-    <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>TMDB 영화 검색</h1>
-      
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+    <main style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>TMDB 영화 검색</h1>
+
+      <form onSubmit={onSearch} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="예) 기생충"
+          placeholder="영화 제목을 입력하세요"
           style={{
             flex: 1,
-            padding: 10,
+            padding: "12px 14px",
+            borderRadius: 10,
             border: "1px solid #ddd",
-            borderRadius: 8,
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSearch();
+            fontSize: 16,
           }}
         />
         <button
-          onClick={onSearch}
-          disabled={loading}
+          type="submit"
+          disabled={isSearching}
           style={{
-            padding: "10px 14px",
-            borderRadius: 8,
+            padding: "12px 16px",
+            borderRadius: 10,
             border: "1px solid #ddd",
-            cursor: "pointer",
+            background: isSearching ? "#f3f3f3" : "white",
+            cursor: isSearching ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "검색 중..." : "검색"}
+          {isSearching ? "검색 중..." : "검색"}
         </button>
-      </div>
+      </form>
 
-      {error && <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>}
+      {errorMsg ? (
+        <div style={{ marginBottom: 12, padding: 12, borderRadius: 10, background: "#fff3f3", border: "1px solid #ffd0d0" }}>
+          {errorMsg}
+        </div>
+      ) : null}
 
-      <ul style={{ marginTop: 16, paddingLeft: 18 }}>
-        {movies.map((m) => (
-          <li key={m.id} style={{ marginBottom: 12 }}>
-            {m.poster_path ? (
-              <img
-                src={`https://image.tmdb.org/t/p/w342${m.poster_path}`}
-                alt={`${m.title} 포스터`}
-                style={{
-                  width: 120,
-                  borderRadius: 8,
-                  border: "1px solid #eee",
-                  marginBottom: 8,
-                }}
-              />
-            ) : (
-              <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
-                포스터 없음
+      {/* ✅ 검색 결과: 포스터 + 제목만 크게, 그리드 */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: 16,
+        }}
+      >
+        {results.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => openMovie(m)}
+            style={{
+              textAlign: "left",
+              border: "1px solid #eee",
+              borderRadius: 14,
+              padding: 12,
+              background: "white",
+              cursor: "pointer",
+              boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
+            }}
+            aria-label={`${m.title} 상세 보기`}
+          >
+            <div
+              style={{
+                width: "100%",
+                aspectRatio: "2/3",
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "#f2f2f2",
+                marginBottom: 10,
+              }}
+            >
+              {m.poster_path ? (
+                <img
+                  src={`${TMDB_IMG}${m.poster_path}`}
+                  alt={m.title}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  loading="lazy"
+                />
+              ) : (
+                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "#888" }}>
+                  No Image
+                </div>
+              )}
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 16, lineHeight: 1.3 }}>{m.title}</div>
+            {m.release_date ? (
+              <div style={{ marginTop: 4, fontSize: 13, color: "#666" }}>{m.release_date}</div>
+            ) : null}
+          </button>
+        ))}
+      </section>
+
+      {/* ✅ 모달: 클릭 시 줄거리 + AI 요약 */}
+      {selected ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            // 배경 클릭 시 닫기
+            if (e.target === e.currentTarget) closeModal();
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              width: "min(920px, 100%)",
+              borderRadius: 16,
+              background: "white",
+              overflow: "hidden",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* 헤더 */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottom: "1px solid #eee" }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{selected.title}</div>
+                {selected.release_date ? (
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>{selected.release_date}</div>
+                ) : null}
               </div>
-            )}
 
-            <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
               <button
-                onClick={() => requestAiSummary(m)}
-                disabled={!m.overview || aiLoadingIds[m.id]}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  border: "1px solid #ddd",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
+                onClick={closeModal}
+                style={{ border: "1px solid #ddd", borderRadius: 10, padding: "8px 10px", background: "white", cursor: "pointer" }}
               >
-                {aiLoadingIds[m.id] ? "요약 중..." : "AI 요약"}
+                닫기
               </button>
             </div>
 
-            {m.overview ? (
-              <div style={{ fontSize: 14, color: "#444", marginTop: 4 }}>
-                {aiSummaries[m.id] ? aiSummaries[m.id] : summarizeOverview(m.overview)}
+            {/* 본문 */}
+            <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, padding: 16 }}>
+              {/* 포스터 */}
+              <div
+                style={{
+                  width: "100%",
+                  aspectRatio: "2/3",
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  background: "#f2f2f2",
+                }}
+              >
+                {selected.poster_path ? (
+                  <img
+                    src={`${TMDB_IMG}${selected.poster_path}`}
+                    alt={selected.title}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "#888" }}>
+                    No Image
+                  </div>
+                )}
               </div>
-            ) : (
-              <div style={{ fontSize: 14, color: "#999", marginTop: 4 }}>
-                줄거리 정보 없음
+
+              {/* 상세 + 요약 */}
+              <div style={{ minWidth: 0 }}>
+                {/* ✅ 요약 중 표시를 "글 영역"에 크게 */}
+                {isSummarizing ? (
+                  <div
+                    style={{
+                      marginBottom: 10,
+                      padding: 10,
+                      borderRadius: 12,
+                      border: "1px solid #dbeafe",
+                      background: "#eff6ff",
+                      fontWeight: 700,
+                    }}
+                  >
+                    요약 중... 잠시만 기다려주세요
+                  </div>
+                ) : null}
+
+                <div style={{ fontSize: 14, color: "#333", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  {hasOverview ? selected.overview : "줄거리 정보가 없습니다."}
+                </div>
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14 }}>
+                  <button
+                    onClick={runSummarize}
+                    disabled={isSummarizing || !hasOverview}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      border: "1px solid #ddd",
+                      background: isSummarizing ? "#f3f3f3" : "white",
+                      cursor: isSummarizing || !hasOverview ? "not-allowed" : "pointer",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {isSummarizing ? "요약 중..." : "AI 요약"}
+                  </button>
+
+                  {!hasOverview ? (
+                    <span style={{ fontSize: 13, color: "#777" }}>줄거리가 없어 AI 요약을 할 수 없어요.</span>
+                  ) : null}
+                </div>
+
+                {aiSummary ? (
+                  <div style={{ marginTop: 14, padding: 12, borderRadius: 12, border: "1px solid #eee", background: "#fafafa" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6 }}>AI 한 문장 요약</div>
+                    <div style={{ fontSize: 14, lineHeight: 1.6 }}>{aiSummary}</div>
+                  </div>
+                ) : null}
               </div>
-            )}
-          </li>
-        ))}
-      </ul>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
