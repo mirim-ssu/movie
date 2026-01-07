@@ -278,21 +278,6 @@ export default function HomePage() {
 
               {/* 상세 + 요약 */}
               <div style={{ minWidth: 0 }}>
-                {/* ✅ 요약 중 표시를 "글 영역"에 크게 */}
-                {isSummarizing ? (
-                  <div
-                    style={{
-                      marginBottom: 10,
-                      padding: 10,
-                      borderRadius: 12,
-                      border: "1px solid #dbeafe",
-                      background: "#eff6ff",
-                      fontWeight: 700,
-                    }}
-                  >
-                    요약 중... 잠시만 기다려주세요
-                  </div>
-                ) : null}
 
                 <div style={{ fontSize: 14, color: "#333", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                   {hasOverview ? selected.overview : "줄거리 정보가 없습니다."}
@@ -318,6 +303,22 @@ export default function HomePage() {
                     <span style={{ fontSize: 13, color: "#777" }}>줄거리가 없어 AI 요약을 할 수 없어요.</span>
                   ) : null}
                 </div>
+
+                {/* ✅ 흰 버튼 아래로 내려온 파란 박스 + 문구는 이것만 */}
+                {isSummarizing ? (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 12,
+                      border: "1px solid #dbeafe",
+                      background: "#eff6ff",
+                      fontWeight: 700,
+                    }}
+                  >
+                    잠시만 기다려 주세요
+                  </div>
+                ) : null}
 
                 {aiSummary ? (
                   <div style={{ marginTop: 14, padding: 12, borderRadius: 12, border: "1px solid #eee", background: "#fafafa" }}>
